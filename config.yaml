@@ -1,4 +1,5 @@
 max_workers: 4
+step_delay_ms: 300 # 工件在工站之间移动的延时（毫秒）
 
 resource_pools:
   STATION_E_TEST: 1

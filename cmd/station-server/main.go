@@ -51,8 +51,8 @@ func main() {
 
 		taskLogger.Info("接收到任务")
 
-		// 模拟远程处理耗时
-		processTime := time.Duration(rand.Intn(2000)+3000) * time.Millisecond
+		// 模拟远程处理耗时：大幅增加到 12-18 秒
+		processTime := time.Duration(rand.Intn(5000)+1000) * time.Millisecond
 		time.Sleep(processTime)
 
 		// 模拟随机失败
@@ -84,8 +84,7 @@ func main() {
 		}
 
 		compLogger.Warn("执行补偿")
-		time.Sleep(1000 * time.Millisecond)
-		w.WriteHeader(http.StatusOK)
+		time.Sleep(3000 * time.Millisecond) // 补偿延时增加到 3 秒
 	})
 
 	if err := http.ListenAndServe(port, nil); err != nil {

@@ -45,8 +45,8 @@ func (s *LocalStation) Execute(ctx context.Context, p *types.Product) types.Resu
 
 	logger.Info("开始处理工件", "product_id", p.ID)
 
-	// 模拟工业加工耗时，增加到 2-4 秒，以便前端观察
-	processTime := time.Duration(rand.Intn(2000)+2000) * time.Millisecond
+	// 模拟工业加工耗时：大幅增加到 10-15 秒，以便清晰演示
+	processTime := time.Duration(rand.Intn(5000)+1000) * time.Millisecond
 	time.Sleep(processTime)
 
 	// 模拟电测环节可能出现的失败
@@ -69,5 +69,5 @@ func (s *LocalStation) Compensate(ctx context.Context, p *types.Product) {
 		logger = logger.With("trace_id", traceID)
 	}
 	logger.Warn("执行补偿逻辑", "product_id", p.ID)
-	time.Sleep(1000 * time.Millisecond) // 补偿也增加一点延时
+	time.Sleep(3000 * time.Millisecond) // 补偿延时增加到 3 秒
 }

@@ -26,7 +26,7 @@ func NewRemoteStation(id types.StationID, endpoint string, logger *slog.Logger) 
 	return &RemoteStation{
 		ID:       id,
 		Endpoint: endpoint,
-		Client:   &http.Client{Timeout: 5 * time.Second}, // 设置 5 秒超时
+		Client:   &http.Client{Timeout: 20 * time.Second}, // BUG FIX: 增加超时时间到 20 秒
 		logger:   logger.With("station_id", id, "remote", true),
 	}
 }

@@ -93,7 +93,7 @@ func (f *FSM) Fire(event Event) error {
 		return fmt.Errorf("invalid transition: cannot fire event '%s' from state '%s'", event, f.Current)
 	}
 
-	prevState := f.Current
+	// prevState := f.Current // 移除未使用的变量
 	f.Current = nextState
 
 	// 触发回调（如果已注册）

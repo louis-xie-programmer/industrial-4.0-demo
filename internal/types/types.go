@@ -20,8 +20,8 @@ const (
 // WorkflowStep 定义工作流中的一个步骤
 // 一个步骤可以包含一个或多个工站（并行执行），也可以包含执行规则
 type WorkflowStep struct {
-	StationIDs []StationID `json:"station_ids"`    // 该步骤包含的工站 ID 列表，多个 ID 表示并行执行
-	Rule       string      `json:"rule,omitempty"` // 执行该步骤的规则表达式 (expr 语法)，为空则默认执行
+	StationIDs []StationID `mapstructure:"station_ids"`    // 该步骤包含的工站 ID 列表，多个 ID 表示并行执行
+	Rule       string      `mapstructure:"rule,omitempty"` // 执行该步骤的规则表达式 (expr 语法)，为空则默认执行
 }
 
 // Product 表示生产线上的工件 (PCB 板)
