@@ -9,6 +9,8 @@ services:
       - "8080:8080"
     networks:
       - industrial-net
+    environment:
+      - REMOTE_STATION_ADDR=http://station_server:9090
     depends_on:
       - station_server
 
@@ -16,10 +18,29 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.station
-    ports:
-      - "9090:9090"
     networks:
       - industrial-net
+    # No ports needed if only accessed internally
+
+  prometheus:
+    image: prom/prometheus:v2.30.3
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9091:9090"
+    networks:
+      - industrial-net
+
+  grafana:
+    image: grafana/grafana:8.2.1
+    volumes:
+      - ./monitoring/grafana-provisioning/:/etc/grafana/provisioning/
+    ports:
+      - "3000:3000"
+    networks:
+      - industrial-net
+    depends_on:
+      - prometheus
 
 networks:
   industrial-net:

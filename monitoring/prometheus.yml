@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 15s # 每 15 秒抓取一次指标
+
+scrape_configs:
+  - job_name: 'industrial-demo'
+    static_configs:
+      - targets: ['orchestrator:8080'] # 从 orchestrator 服务的 8080 端口抓取

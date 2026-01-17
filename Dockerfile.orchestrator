@@ -24,6 +24,9 @@ COPY --from=builder /app/orchestrator .
 # Copy static files for the web UI
 COPY --from=builder /app/web ./web
 
+# *** BUG FIX: Copy the config file ***
+COPY config.yaml .
+
 # Expose API/Web port
 EXPOSE 8080
 

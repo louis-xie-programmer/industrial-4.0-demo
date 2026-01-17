@@ -1,5 +1,6 @@
 max_workers: 4
-step_delay_ms: 300 # 工件在工站之间移动的延时（毫秒）
+step_delay_ms: 2000 # 工件在工站之间移动的延时（毫秒）
+station_delay_ms: 10000 # 默认工站处理延时（毫秒）
 
 resource_pools:
   STATION_E_TEST: 1

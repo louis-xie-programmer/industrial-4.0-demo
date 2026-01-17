@@ -25,7 +25,6 @@ const walPath = "tasks.wal"
 
 // main 是应用程序的主入口
 func main() {
-	// 1. 初始化核心组件
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
@@ -48,16 +47,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 2. 注册事件处理器
 	handlers.RegisterEventHandlers(eventBus, stateTracker, logger)
 
-	// 3. 初始化引擎和调度器
 	wf := engine.NewWorkflowEngine(cfg.Workflows, cfg.ResourcePools, logger, eventBus, cfg.StepDelayMs)
-	registerStations(wf, logger)
+	registerStations(wf, logger, cfg.StationDelayMs)
 
 	scheduler := engine.NewScheduler(wf, cfg.MaxWorkers, wal, stateTracker, logger)
 
-	// 4. 恢复和启动
 	if err := scheduler.RecoverTasks(); err != nil {
 		logger.Warn("从 WAL 恢复任务失败", "error", err)
 	}
@@ -71,20 +67,19 @@ func main() {
 	go startAPIServer(scheduler, hub, stateTracker, logger)
 	go simulateTasks(ctx, scheduler)
 
-	// 5. 优雅停机
 	waitForShutdown(logger, cancel, scheduler)
 }
 
 // registerStations 注册所有可用的工站
-func registerStations(wf *engine.WorkflowEngine, logger *slog.Logger) {
-	wf.RegisterStation(station.NewStation(types.StationCAM, logger))
-	wf.RegisterStation(station.NewStation(types.StationDrill, logger))
-	wf.RegisterStation(station.NewStation(types.StationLami, logger))
-	wf.RegisterStation(station.NewStation(types.StationEtch, logger))
-	wf.RegisterStation(station.NewStation(types.StationMask, logger))
-	wf.RegisterStation(station.NewStation(types.StationSilk, logger))
-	wf.RegisterStation(station.NewStation(types.StationETest, logger))
-	wf.RegisterStation(station.NewStation(types.StationPack, logger))
+func registerStations(wf *engine.WorkflowEngine, logger *slog.Logger, delayMs int) {
+	wf.RegisterStation(station.NewStation(types.StationCAM, logger, delayMs))
+	wf.RegisterStation(station.NewStation(types.StationDrill, logger, delayMs))
+	wf.RegisterStation(station.NewStation(types.StationLami, logger, delayMs))
+	wf.RegisterStation(station.NewStation(types.StationEtch, logger, delayMs))
+	wf.RegisterStation(station.NewStation(types.StationMask, logger, delayMs))
+	wf.RegisterStation(station.NewStation(types.StationSilk, logger, delayMs))
+	wf.RegisterStation(station.NewStation(types.StationETest, logger, delayMs))
+	wf.RegisterStation(station.NewStation(types.StationPack, logger, delayMs))
 
 	remoteAddr := os.Getenv("REMOTE_STATION_ADDR")
 	if remoteAddr == "" {
@@ -113,7 +108,7 @@ func simulateTasks(ctx context.Context, scheduler *engine.Scheduler) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(3 * time.Second):
+		case <-time.After(10 * time.Second):
 			scheduler.SubmitTask(&task)
 		}
 	}

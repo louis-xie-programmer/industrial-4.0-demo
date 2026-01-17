@@ -1,0 +1,138 @@
+{
+  "__inputs": [],
+  "__requires": [],
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": null,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "8.2.1",
+      "targets": [
+        {
+          "exemplar": true,
+          "expr": "scheduler_tasks_in_queue",
+          "interval": "",
+          "legendFormat": "待处理任务",
+          "refId": "A"
+        }
+      ],
+      "title": "队列积压任务数",
+      "type": "stat"
+    },
+    {
+      "datasource": null,
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 8,
+        "y": 0
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "pluginVersion": "8.2.1",
+      "targets": [
+        {
+          "exemplar": true,
+          "expr": "sum(scheduler_tasks_processed_total) by (type)",
+          "interval": "",
+          "legendFormat": "{{type}}",
+          "refId": "A"
+        }
+      ],
+      "title": "各类型任务分布",
+      "type": "piechart"
+    },
+    {
+      "datasource": null,
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
+      "id": 6,
+      "options": {
+        "bucket_size": "auto",
+        "color_mode": "scheme",
+        "color_scheme": "interpolateRdYlGn",
+        "max": null,
+        "min": null,
+        "mode": "time",
+        "show_legend": true,
+        "time_series": true,
+        "tooltip_mode": "single"
+      },
+      "pluginVersion": "8.2.1",
+      "targets": [
+        {
+          "exemplar": true,
+          "expr": "sum(rate(station_processing_duration_seconds_sum[5m])) by (le, station_id) / sum(rate(station_processing_duration_seconds_count[5m])) by (le, station_id)",
+          "interval": "",
+          "legendFormat": "{{station_id}}",
+          "refId": "A"
+        }
+      ],
+      "title": "各工站平均处理耗时 (秒)",
+      "type": "heatmap"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 30,
+  "style": "dark",
+  "tags": [],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "PCB 智能工厂监控大屏",
+  "uid": "industrial-demo",
+  "version": 1
+}
