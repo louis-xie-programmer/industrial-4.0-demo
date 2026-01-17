@@ -8,21 +8,22 @@ import (
 	"sync"
 )
 
-// LogEntry represents an entry in the WAL file.
+// LogEntry 代表 WAL 文件中的一条日志记录
 type LogEntry struct {
-	Type   string         `json:"type"` // "TASK" or "COMPLETE"
-	Task   *types.Product `json:"task,omitempty"`
-	TaskID string         `json:"task_id,omitempty"`
+	Type   string         `json:"type"`              // 日志类型: "TASK" (新任务) 或 "COMPLETE" (任务完成)
+	Task   *types.Product `json:"task,omitempty"`    // 如果是新任务，包含完整的任务数据
+	TaskID string         `json:"task_id,omitempty"` // 如果是任务完成，只包含任务 ID
 }
 
-// WAL (Write-Ahead Log) for persisting tasks.
+// WAL (Write-Ahead Log) 实现了简单的预写日志功能，用于持久化任务
 type WAL struct {
-	file *os.File
-	mu   sync.Mutex
+	file *os.File   // 日志文件句柄
+	mu   sync.Mutex // 互斥锁，保证文件写入的原子性
 }
 
-// NewWAL creates or opens a WAL file.
+// NewWAL 创建或打开一个 WAL 文件
 func NewWAL(path string) (*WAL, error) {
+	// O_APPEND: 追加写入, O_CREATE: 文件不存在则创建, O_RDWR: 读写模式
 	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		return nil, err
@@ -30,7 +31,7 @@ func NewWAL(path string) (*WAL, error) {
 	return &WAL{file: file}, nil
 }
 
-// Append writes a new task to the log.
+// Append 将一个新任务写入日志
 func (w *WAL) Append(task *types.Product) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -41,15 +42,16 @@ func (w *WAL) Append(task *types.Product) error {
 		return err
 	}
 
+	// 写入数据并在末尾添加换行符
 	_, err = w.file.Write(append(data, '\n'))
 	if err != nil {
 		return err
 	}
-	// Ensure data is written to stable storage.
+	// 确保数据被刷新到磁盘，防止数据丢失
 	return w.file.Sync()
 }
 
-// Complete marks a task as completed in the log.
+// Complete 在日志中标记一个任务已完成
 func (w *WAL) Complete(taskID string) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -67,24 +69,25 @@ func (w *WAL) Complete(taskID string) error {
 	return w.file.Sync()
 }
 
-// Recover reads the log and returns uncompleted tasks.
+// Recover 从日志文件中恢复未完成的任务
+// 在系统启动时调用
 func (w *WAL) Recover() ([]*types.Product, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	// Seek to the beginning of the file for reading
+	// 将文件指针移动到开头以进行读取
 	if _, err := w.file.Seek(0, 0); err != nil {
 		return nil, err
 	}
 
-	pendingTasks := make(map[string]*types.Product)
-	completedTasks := make(map[string]bool)
+	pendingTasks := make(map[string]*types.Product) // 存储所有已提交的任务
+	completedTasks := make(map[string]bool)         // 存储所有已完成的任务 ID
 
 	scanner := bufio.NewScanner(w.file)
 	for scanner.Scan() {
 		var entry LogEntry
 		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
-			// Log the error and continue, might be a corrupted line
+			// 忽略损坏的行
 			continue
 		}
 
@@ -92,7 +95,7 @@ func (w *WAL) Recover() ([]*types.Product, error) {
 		case "TASK":
 			pendingTasks[entry.Task.ID] = entry.Task
 		case "COMPLETE":
-			completedTasks[entry.Type] = true
+			completedTasks[entry.TaskID] = true
 		}
 	}
 
@@ -100,6 +103,7 @@ func (w *WAL) Recover() ([]*types.Product, error) {
 		return nil, err
 	}
 
+	// 找出所有已提交但未完成的任务
 	var recoveredTasks []*types.Product
 	for id, task := range pendingTasks {
 		if !completedTasks[id] {
@@ -107,7 +111,7 @@ func (w *WAL) Recover() ([]*types.Product, error) {
 		}
 	}
 
-	// After reading, seek back to the end for appending
+	// 恢复文件指针到末尾，以便后续追加写入
 	if _, err := w.file.Seek(0, os.SEEK_END); err != nil {
 		return nil, err
 	}
@@ -115,7 +119,7 @@ func (w *WAL) Recover() ([]*types.Product, error) {
 	return recoveredTasks, nil
 }
 
-// Close closes the WAL file.
+// Close 关闭 WAL 文件
 func (w *WAL) Close() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()

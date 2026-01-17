@@ -4,28 +4,31 @@ import (
 	"industrial-4.0-demo/internal/types"
 )
 
-// Item 包装产品，增加在堆中的索引
+// Item 是优先级队列中的元素，包装了 Product
 type Item struct {
-	Product *types.Product
-	index   int
+	Product *types.Product // 实际的工件数据
+	index   int            // 元素在堆中的索引，用于 update 操作（虽然本项目未用到）
 }
 
-// PriorityQueue 实现 heap.Interface
+// PriorityQueue 实现了 heap.Interface 接口，是一个基于最小堆的优先级队列
 type PriorityQueue []*Item
 
 func (pq PriorityQueue) Len() int { return len(pq) }
 
-// 注意：我们要的是高优先级先出，所以用 >
+// Less 定义了元素的排序规则
+// 注意：我们要实现最大堆（高优先级先出），所以这里使用 >
 func (pq PriorityQueue) Less(i, j int) bool {
 	return pq[i].Product.Priority > pq[j].Product.Priority
 }
 
+// Swap 交换两个元素的位置
 func (pq PriorityQueue) Swap(i, j int) {
 	pq[i], pq[j] = pq[j], pq[i]
 	pq[i].index = i
 	pq[j].index = j
 }
 
+// Push 向队列中添加元素
 func (pq *PriorityQueue) Push(x interface{}) {
 	n := len(*pq)
 	item := x.(*Item)
@@ -33,6 +36,7 @@ func (pq *PriorityQueue) Push(x interface{}) {
 	*pq = append(*pq, item)
 }
 
+// Pop 从队列中移除并返回优先级最高的元素
 func (pq *PriorityQueue) Pop() interface{} {
 	old := *pq
 	n := len(old)

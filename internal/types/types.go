@@ -1,36 +1,44 @@
 package types
 
 // StationID 定义工站 ID
+// 使用字符串类型，方便在日志和配置中直接使用
 type StationID string
 
 const (
-	StationEntry    StationID = "ENTRY_STATION"    // 上料站
-	StationAssemble StationID = "ASSEMBLE_STATION" // 组装站
-	StationPaint    StationID = "PAINT_STATION"    // 喷涂站 (新增，用于并行演示)
-	StationDry      StationID = "DRY_STATION"      // 烘干站 (新增，用于并行演示)
-	StationQC       StationID = "QC_STATION"       // 质检站
-	StationExit     StationID = "EXIT_STATION"     // 下料站
+	// PCB 生产工站常量定义
+	StationCAM   StationID = "STATION_CAM"    // CAM 工程站 (入口)：负责文件处理和工艺预审
+	StationDrill StationID = "STATION_DRILL"  // 数控钻孔机：负责板材钻孔
+	StationLami  StationID = "STATION_LAMI"   // 层压机：负责多层板的压合 (多层板专用)
+	StationEtch  StationID = "STATION_ETCH"   // 蚀刻线：负责形成线路图形
+	StationMask  StationID = "STATION_MASK"   // 阻焊涂布机：负责涂布绿油
+	StationSilk  StationID = "STATION_SILK"   // 丝印机：负责打印字符
+	StationAOI   StationID = "STATION_AOI"    // AOI 光学检测仪 (远程工站)：负责线路缺陷检测
+	StationETest StationID = "STATION_E_TEST" // 飞针测试机 (资源瓶颈)：负责电气性能测试
+	StationPack  StationID = "STATION_PACK"   // 包装机 (出口)：负责最终包装
 )
 
-// WorkflowStep 定义工作流中的一个步骤，可以是单个工站，也可以是并行的一组工站
+// WorkflowStep 定义工作流中的一个步骤
+// 一个步骤可以包含一个或多个工站（并行执行），也可以包含执行规则
 type WorkflowStep struct {
-	StationIDs []StationID // 如果有多个 ID，则表示并行执行
+	StationIDs []StationID `json:"station_ids"`    // 该步骤包含的工站 ID 列表，多个 ID 表示并行执行
+	Rule       string      `json:"rule,omitempty"` // 执行该步骤的规则表达式 (expr 语法)，为空则默认执行
 }
 
-// Product 表示生产线上的工件
+// Product 表示生产线上的工件 (PCB 板)
 type Product struct {
-	ID       string
-	Type     string      // 产品类型：STANDARD, SIMPLE, STRICT, PARALLEL_DEMO
-	Priority int         // 优先级：0-普通, 1-加急, 2-紧急(Top Secret)
-	Step     int         // 当前步骤索引
-	History  []string    // 加工历史记录
-	Status   string      // 由 FSM 管理，这里仅作快照或移除
-	FSM      interface{} // 运行时绑定的 FSM 实例，使用 interface{} 避免循环依赖，实际使用时断言
+	ID       string                 // 工件唯一标识
+	Type     string                 // 产品类型: PCB_DOUBLE_LAYER, PCB_MULTILAYER, PCB_PROTOTYPE
+	Priority int                    // 优先级：数值越大优先级越高
+	Step     int                    // 当前步骤索引，用于流程控制
+	History  []string               // 加工历史记录，存储经过的工站 ID
+	Status   string                 // 当前状态，由 FSM 管理 (e.g., PROCESSING, COMPLETED)
+	FSM      interface{}            `json:"-"`               // 运行时绑定的 FSM 实例，不参与 JSON 序列化
+	Attrs    map[string]interface{} `json:"attrs,omitempty"` // 动态属性，用于规则引擎决策 (e.g., layers: 4, is_fragile: true)
 }
 
-// Result 任务执行结果
+// Result 表示工站任务执行的结果
 type Result struct {
-	ProductID string
-	Success   bool
-	Error     error
+	ProductID string // 关联的工件 ID
+	Success   bool   // 是否执行成功
+	Error     error  // 如果失败，存储错误信息
 }

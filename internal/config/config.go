@@ -1,45 +1,37 @@
 package config
 
 import (
+	"fmt"
 	"industrial-4.0-demo/internal/types"
+
+	"github.com/spf13/viper"
 )
 
+// Config 定义应用程序的配置结构
+// 使用 mapstructure 标签来映射配置文件中的字段
 type Config struct {
-	MaxWorkers int
-	Workflows  map[string][]types.WorkflowStep
+	MaxWorkers    int                             `mapstructure:"max_workers"`    // 全局最大并发工人数
+	Workflows     map[string][]types.WorkflowStep `mapstructure:"workflows"`      // 工艺流程定义，Key 为产品类型
+	ResourcePools map[types.StationID]int         `mapstructure:"resource_pools"` // 资源池配置，Key 为工站 ID，Value 为资源数量
 }
 
-// LoadConfig 模拟加载配置，实际项目中可能从文件或环境变量加载
-func LoadConfig() *Config {
-	return &Config{
-		MaxWorkers: 2,
-		Workflows: map[string][]types.WorkflowStep{
-			"STANDARD": {
-				{StationIDs: []types.StationID{types.StationEntry}},
-				{StationIDs: []types.StationID{types.StationAssemble}},
-				{StationIDs: []types.StationID{types.StationQC}},
-				{StationIDs: []types.StationID{types.StationExit}},
-			},
-			"SIMPLE": {
-				{StationIDs: []types.StationID{types.StationEntry}},
-				{StationIDs: []types.StationID{types.StationAssemble}},
-				{StationIDs: []types.StationID{types.StationExit}},
-			},
-			"STRICT": {
-				{StationIDs: []types.StationID{types.StationEntry}},
-				{StationIDs: []types.StationID{types.StationAssemble}},
-				{StationIDs: []types.StationID{types.StationQC}},
-				{StationIDs: []types.StationID{types.StationQC}}, // 双重质检
-				{StationIDs: []types.StationID{types.StationExit}},
-			},
-			"PARALLEL_DEMO": {
-				{StationIDs: []types.StationID{types.StationEntry}},
-				// 并行步骤：组装的同时进行喷涂
-				{StationIDs: []types.StationID{types.StationAssemble, types.StationPaint}},
-				{StationIDs: []types.StationID{types.StationDry}},
-				{StationIDs: []types.StationID{types.StationQC}},
-				{StationIDs: []types.StationID{types.StationExit}},
-			},
-		},
+// LoadConfig 从 config.yaml 文件加载配置
+// 使用 Viper 库来读取和解析配置文件
+func LoadConfig() (*Config, error) {
+	viper.SetConfigName("config") // 配置文件名称 (不带扩展名)
+	viper.SetConfigType("yaml")   // 配置文件类型
+	viper.AddConfigPath(".")      // 查找配置文件的路径 (当前目录)
+
+	// 读取配置文件
+	if err := viper.ReadInConfig(); err != nil {
+		return nil, fmt.Errorf("读取配置文件失败: %w", err)
 	}
+
+	// 将配置解析到结构体中
+	var cfg Config
+	if err := viper.Unmarshal(&cfg); err != nil {
+		return nil, fmt.Errorf("解析配置文件失败: %w", err)
+	}
+
+	return &cfg, nil
 }

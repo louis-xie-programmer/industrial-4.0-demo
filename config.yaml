@@ -1,0 +1,34 @@
+max_workers: 4
+
+resource_pools:
+  STATION_E_TEST: 1
+  STATION_AOI: 1
+
+workflows:
+  PCB_DOUBLE_LAYER:
+    - station_ids: ["STATION_CAM"]
+    - station_ids: ["STATION_DRILL"]
+    - station_ids: ["STATION_ETCH"]
+    - station_ids: ["STATION_MASK", "STATION_SILK"]
+    - station_ids: ["STATION_AOI"]
+    - station_ids: ["STATION_E_TEST"]
+    - station_ids: ["STATION_PACK"]
+
+  PCB_MULTILAYER:
+    - station_ids: ["STATION_CAM"]
+    - station_ids: ["STATION_LAMI"]
+      rule: "product.Attrs.layers > 2"
+    - station_ids: ["STATION_DRILL"]
+    - station_ids: ["STATION_ETCH"]
+    - station_ids: ["STATION_MASK"]
+    - station_ids: ["STATION_AOI"]
+    - station_ids: ["STATION_E_TEST"]
+    - station_ids: ["STATION_PACK"]
+
+  PCB_PROTOTYPE:
+    - station_ids: ["STATION_CAM"]
+    - station_ids: ["STATION_DRILL"]
+    - station_ids: ["STATION_ETCH"]
+    - station_ids: ["STATION_MASK"]
+    - station_ids: ["STATION_E_TEST"]
+    - station_ids: ["STATION_PACK"]
