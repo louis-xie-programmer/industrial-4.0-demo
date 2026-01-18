@@ -16,13 +16,14 @@ import (
 )
 
 // WorkflowEngine 负责编排和执行生产流程
+// 它管理工站、工作流定义、资源池，并协调工件在各个工站间的流转
 type WorkflowEngine struct {
-	stations      map[types.StationID]station.Station
-	workflows     map[string][]types.WorkflowStep
-	resourcePools map[types.StationID]chan struct{}
-	logger        *slog.Logger
-	eventBus      *event.Bus
-	stepDelay     time.Duration
+	stations      map[types.StationID]station.Station // 已注册的工站映射
+	workflows     map[string][]types.WorkflowStep     // 工作流定义，Key 为产品类型
+	resourcePools map[types.StationID]chan struct{}   // 资源池，用于限制特定工站的并发数
+	logger        *slog.Logger                        // 结构化日志记录器
+	eventBus      *event.Bus                          // 事件总线，用于发布业务事件
+	stepDelay     time.Duration                       // 步骤之间的移动延时
 }
 
 // NewWorkflowEngine 创建一个新的 WorkflowEngine 实例
@@ -41,6 +42,7 @@ func NewWorkflowEngine(
 		eventBus:      bus,
 		stepDelay:     time.Duration(stepDelayMs) * time.Millisecond,
 	}
+	// 初始化资源池
 	for id, size := range pools {
 		engine.resourcePools[id] = make(chan struct{}, size)
 	}
@@ -53,19 +55,24 @@ func (e *WorkflowEngine) RegisterStation(s station.Station) {
 }
 
 // Process 执行工件的生产流程
+// 这是核心业务逻辑，包含 Saga 事务管理、规则引擎评估和并行工序执行
 func (e *WorkflowEngine) Process(ctx context.Context, p *types.Product) {
+	// 创建带有上下文信息的 Logger
 	logger := e.logger.With("product_id", p.ID, "product_type", p.Type)
 	if traceID, ok := util.TraceIDFromContext(ctx); ok {
 		logger = logger.With("trace_id", traceID)
 	}
 
+	// 初始化工件的 FSM 状态机
 	productFSM := fsm.NewFSM(p.ID)
 	p.FSM = productFSM
 
+	// 发布工件开始生产事件
 	e.eventBus.Publish(event.Event{Type: event.ProductStarted, ProductID: p.ID, Product: p})
 	logger.Info("开始生产工件", "attributes", p.Attrs)
 
-	// *** BUG FIX: Viper 将 key 转换为小写，所以查找时需要转换为小写 ***
+	// 获取对应产品类型的工作流
+	// 注意：Viper 将配置文件的 key 转换为小写，所以查找时需要转换为小写
 	sequence, ok := e.workflows[strings.ToLower(p.Type)]
 	if !ok {
 		logger.Warn("未找到指定的工作流，将使用默认流程", "requested_type", p.Type)
@@ -75,6 +82,7 @@ func (e *WorkflowEngine) Process(ctx context.Context, p *types.Product) {
 	executedStations := []station.Station{}
 	for i, step := range sequence {
 		p.Step = i
+		// 规则引擎评估：判断是否需要跳过当前步骤
 		if shouldSkip, err := e.evaluateRule(step.Rule, p); err != nil {
 			logger.Error("规则引擎评估失败", "error", err, "rule", step.Rule)
 			continue
@@ -83,12 +91,15 @@ func (e *WorkflowEngine) Process(ctx context.Context, p *types.Product) {
 			continue
 		}
 
-		if i > 0 {
+		// 在执行步骤前，增加一个“移动”延时
+		if i > 0 { // 第一个步骤不需要移动
 			time.Sleep(e.stepDelay)
 		}
 
+		// 执行当前步骤（可能包含并行工站）
 		stepResults, stepStations := e.executeStep(ctx, step, p, logger)
 
+		// 检查步骤执行结果，如果有失败则触发 Saga 回滚
 		if failed, err := e.checkStepFailure(stepResults); failed {
 			e.eventBus.Publish(event.Event{Type: event.ProductFailed, ProductID: p.ID, Product: p, Error: err})
 			e.rollback(ctx, executedStations, p, logger)
@@ -97,13 +108,15 @@ func (e *WorkflowEngine) Process(ctx context.Context, p *types.Product) {
 		executedStations = append(executedStations, stepStations...)
 	}
 
+	// 流程成功完成
 	e.eventBus.Publish(event.Event{Type: event.ProductCompleted, ProductID: p.ID, Product: p})
 	logger.Info("工件顺利下线")
 }
 
+// evaluateRule 使用 expr 引擎评估规则表达式
 func (e *WorkflowEngine) evaluateRule(rule string, p *types.Product) (bool, error) {
 	if rule == "" {
-		return false, nil
+		return false, nil // 没有规则则默认执行
 	}
 	env := map[string]interface{}{"product": p}
 	program, err := expr.Compile(rule, expr.Env(env))
@@ -118,9 +131,10 @@ func (e *WorkflowEngine) evaluateRule(rule string, p *types.Product) (bool, erro
 	if !ok {
 		return true, fmt.Errorf("rule result is not a boolean")
 	}
-	return !shouldExecute, nil
+	return !shouldExecute, nil // 返回是否跳过 (shouldSkip)
 }
 
+// executeStep 执行单个工作流步骤，支持并行执行多个工站
 func (e *WorkflowEngine) executeStep(ctx context.Context, step types.WorkflowStep, p *types.Product, logger *slog.Logger) ([]types.Result, []station.Station) {
 	var wg sync.WaitGroup
 	results := make([]types.Result, len(step.StationIDs))
@@ -137,13 +151,15 @@ func (e *WorkflowEngine) executeStep(ctx context.Context, step types.WorkflowSte
 		go func(index int, s station.Station) {
 			defer wg.Done()
 			stationLogger := logger.With("station_id", s.GetID())
+
+			// 资源申请逻辑
 			pool, hasPool := e.resourcePools[s.GetID()]
 			if hasPool {
 				stationLogger.Info("等待资源")
-				pool <- struct{}{}
+				pool <- struct{}{} // 获取资源凭证
 				stationLogger.Info("获得资源")
 				defer func() {
-					<-pool
+					<-pool // 释放资源凭证
 					stationLogger.Info("释放资源")
 				}()
 			}
@@ -156,10 +172,11 @@ func (e *WorkflowEngine) executeStep(ctx context.Context, step types.WorkflowSte
 
 		}(i, st)
 	}
-	wg.Wait()
+	wg.Wait() // 确保所有并行的 goroutine 都执行完毕
 	return results, stations
 }
 
+// checkStepFailure 检查步骤执行结果中是否有失败
 func (e *WorkflowEngine) checkStepFailure(results []types.Result) (bool, error) {
 	for _, res := range results {
 		if !res.Success {
@@ -169,6 +186,7 @@ func (e *WorkflowEngine) checkStepFailure(results []types.Result) (bool, error) 
 	return false, nil
 }
 
+// rollback 执行 Saga 补偿流程，逆序执行已完成工站的补偿操作
 func (e *WorkflowEngine) rollback(ctx context.Context, stations []station.Station, p *types.Product, logger *slog.Logger) {
 	logger.Warn("启动 SAGA 补偿流程")
 	for i := len(stations) - 1; i >= 0; i-- {
